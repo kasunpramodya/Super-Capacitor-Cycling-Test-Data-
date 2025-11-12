@@ -1,0 +1,93 @@
+... existing code ...
+    def __init__(self, root):
+        self.root = root
+... existing code ...
+        # --- Variables ---
+        self.selected_file = tk.StringVar(value="No file selected.")
+        self.average_esr = tk.StringVar(value="Average ESR: N/A")
+        self.results_df = None # To store the results dataframe for export
+
+        # --- Main Frame ---
+        main_frame = ttk.Frame(self.root, padding=10)
+... existing code ...
+        result_frame = ttk.Frame(main_frame, padding=10)
+        result_frame.pack(fill=tk.X)
+        
+        ttk.Label(result_frame, textvariable=self.average_esr, style="Result.TLabel").pack(side=tk.LEFT)
+
+        self.export_button = ttk.Button(result_frame, text="Export Results", command=self.export_results, state="disabled")
+        self.export_button.pack(side=tk.RIGHT, anchor="e", padx=5)
+
+        # --- Treeview Frame (for the table) ---
+        tree_frame = ttk.Frame(main_frame)
+... existing code ...
+        self.root.update_idletasks() # Force GUI update
+
+        # Run the processing
+        df, avg_esr, error = process_battery_data(file_path)
+
+        # Handle results
+        if error:
+            messagebox.showerror("Processing Error", error)
+            self.selected_file.set(f"Error. Please try again.")
+            self.average_esr.set("Average ESR: N/A")
+            self.results_df = None # Clear results
+            self.export_button.config(state="disabled") # Disable button
+            # Clear treeview on error
+            self.populate_treeview(pd.DataFrame()) 
+        else:
+            self.selected_file.set(f"Loaded: {os.path.basename(file_path)}")
+            self.average_esr.set(f"Average ESR: {avg_esr:.6f} Ω")
+            self.results_df = df # Store results
+            self.export_button.config(state="normal") # Enable button
+            self.populate_treeview(df)
+
+    def populate_treeview(self, df):
+... existing code ...
+        for index, row in df.iterrows():
+            self.tree.insert("", "end", values=list(row))
+
+    def export_results(self):
+        """
+        Save the processed results DataFrame to an Excel or CSV file.
+        """
+        if self.results_df is None or self.results_df.empty:
+            messagebox.showwarning("No Data", "There is no data to export. Please load a file first.")
+            return
+
+        file_path = filedialog.asksaveasfilename(
+            title="Save Results As",
+            initialfile="esr_results.xlsx",
+            defaultextension=".xlsx",
+            filetypes=[("Excel files", "*.xlsx"), 
+                       ("CSV files", "*.csv"),
+                       ("All files", "*.*")]
+        )
+
+        if not file_path:
+            return # User cancelled
+
+        try:
+            if file_path.endswith('.xlsx'):
+                self.results_df.to_excel(file_path, index=False, engine='openpyxl')
+            elif file_path.endswith('.csv'):
+                self.results_df.to_csv(file_path, index=False)
+            else:
+                # Handle cases where user types a name without extension 
+                # but selected a file type
+                if "xlsx" in file_path:
+                     self.results_df.to_excel(file_path, index=False, engine='openpyxl')
+                elif "csv" in file_path:
+                    self.results_df.to_csv(file_path, index=False)
+                else:
+                    # Default to excel if unsure
+                    self.results_df.to_excel(file_path, index=False, engine='openpyxl')
+
+            messagebox.showinfo("Export Successful", f"Results successfully saved to:\n{file_path}")
+        except Exception as e:
+            messagebox.showerror("Export Error", f"An error occurred while saving the file:\n{e}")
+
+
+# --- Main execution ---
+if __name__ == "__main__":
+... existing code ...
